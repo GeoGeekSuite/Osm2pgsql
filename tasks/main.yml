@@ -1,0 +1,42 @@
+---
+# tasks file for Osm2pgsql
+- name: Create Image File folder 
+  file:
+    path: '{{ container_images }}/osm2pgsql'
+    state: directory
+    owner: '{{ ansible_user }}'
+    group: '{{ ansible_user }}'
+  become: true
+- name: Render osm2pgsql Image
+  template:
+    src: Dockerfile.j2
+    dest: '{{ container_images }}/osm2pgsql/Dockerfile'
+- name: Render main.py
+  template:
+    src: main.j2.py
+    dest: '{{ container_images }}/osm2pgsql/main.py'
+- name: Build osm2pgsql Image
+  shell:
+    cmd: 'podman image build . -t osm2pgsql:{{ osm2pgsql.ggs_version }}'
+    chdir: '{{ container_images }}/osm2pgsql'
+- name: Tag image (repo only)
+  shell:
+    cmd: 'podman tag osm2pgsql:{{ osm2pgsql.ggs_version }} {{ local_registry.url }}:{{ local_registry.port }}/{{ local_registry.repository }}/osm2pgsql:{{ osm2pgsql.ggs_version }}'
+- name: Push Image to repo 
+  shell:
+    cmd: 'podman push {{ local_registry.url }}:{{ local_registry.port }}/{{ local_registry.repository }}/osm2pgsql:{{ osm2pgsql.ggs_version }} --tls-verify=false'
+- name: Make sure manifest folder exists
+  file:
+    path: '{{ manifest_folder }}'
+    state: directory
+    owner: '{{ ansible_user }}'
+    group: '{{ ansible_user }}'
+  become: true
+- name: Render osm2pgsql Manifest
+  template:
+    src: osm2pgsql_deployment.j2.yaml
+    dest: '{{ manifest_folder }}/osm2pgsql_deployment.yaml'
+- name: Create osm2pgsql Deployment
+  shell:
+    cmd: 'kubectl apply -f osm2pgsql_deployment.yaml -n {{ gisnamespace }}'
+    chdir: '{{ manifest_folder }}'
